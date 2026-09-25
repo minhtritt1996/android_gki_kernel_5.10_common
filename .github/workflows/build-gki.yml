@@ -32,18 +32,6 @@ jobs:
             libelf-dev libssl-dev lld llvm clang pahole \
             python3 rsync unzip zip zstd
 
-      - name: Fetch Android kernel build system
-        run: |
-          set -eux
-          rm -rf "$RUNNER_TEMP/kernel-build"
-          git clone --depth=1 \
-            https://android.googlesource.com/kernel/build \
-            "$RUNNER_TEMP/kernel-build"
-          KERNEL_BUILD_SH="$(find "$RUNNER_TEMP/kernel-build" -maxdepth 4 -type f -name build.sh | head -n1)"
-          test -n "$KERNEL_BUILD_SH"
-          echo "KERNEL_BUILD_DIR=$RUNNER_TEMP/kernel-build" >> "$GITHUB_ENV"
-          echo "KERNEL_BUILD_SH=$KERNEL_BUILD_SH" >> "$GITHUB_ENV"
-
       - name: Check Redmi K60 / Droidspaces configuration
         run: |
           set -eux
@@ -55,19 +43,38 @@ jobs:
 
       - name: Build GKI
         env:
-          BUILD_CONFIG: build.config.gki
           OUT_DIR: ${{ github.workspace }}/out
           DIST_DIR: ${{ github.workspace }}/dist
-          HERMETIC_TOOLCHAIN: "0"
           LLVM: "1"
           LLVM_IAS: "1"
           ARCH: arm64
-          SKIP_MRPROPER: "0"
-          KERNEL_BUILD_DIR: ${{ runner.temp }}/kernel-build
         run: |
-          set -eux
-          test -f "$KERNEL_BUILD_SH"
-          bash "$KERNEL_BUILD_SH" -j"$(nproc)" V=1
+          set -uxo pipefail
+          mkdir -p "$OUT_DIR"
+          : > "$OUT_DIR/build.log"
+
+          run_make() {
+            "$@" 2>&1 | tee -a "$OUT_DIR/build.log"
+            local status="${PIPESTATUS[0]}"
+            if [ "$status" -ne 0 ]; then
+              echo "Kernel build failed; last 300 log lines follow:" >&2
+              tail -n 300 "$OUT_DIR/build.log" >&2
+              exit "$status"
+            fi
+          }
+
+          run_make make O="$OUT_DIR" ARCH="$ARCH" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" gki_defconfig
+          run_make make O="$OUT_DIR" ARCH="$ARCH" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" -j"$(nproc)" Image
+          mkdir -p "$DIST_DIR"
+          cp "$OUT_DIR/arch/arm64/boot/Image" "$DIST_DIR/Image"
+
+      - name: Upload kernel build log on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: GKI-build-log-${{ github.sha }}
+          if-no-files-found: warn
+          path: out/build.log
 
       - name: Verify kernel image
         run: |
