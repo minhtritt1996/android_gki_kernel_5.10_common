@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout kernel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: android12-5.10-2026-04_r1
           fetch-depth: 1
@@ -34,7 +34,7 @@ jobs:
 
       - name: Fetch Android kernel build system
         run: |
-          git clone --depth=1 --branch android12-5.10 \
+          git clone --depth=1 \
             https://android.googlesource.com/kernel/build build
 
       - name: Check Redmi K60 / Droidspaces configuration
