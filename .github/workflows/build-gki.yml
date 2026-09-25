@@ -39,7 +39,7 @@ jobs:
           git clone --depth=1 \
             https://android.googlesource.com/kernel/build \
             "$RUNNER_TEMP/kernel-build"
-          KERNEL_BUILD_SH="$(find "$RUNNER_TEMP/kernel-build" -maxdepth 4 -type f -name build.sh | head -n1)"
+          KERNEL_BUILD_SH="$(find "$RUNNER_TEMP/kernel-build" -type f -name build.sh | head -n1)"
           test -n "$KERNEL_BUILD_SH"
           echo "KERNEL_BUILD_DIR=$RUNNER_TEMP/kernel-build" >> "$GITHUB_ENV"
           echo "KERNEL_BUILD_SH=$KERNEL_BUILD_SH" >> "$GITHUB_ENV"
