@@ -34,8 +34,13 @@ jobs:
 
       - name: Fetch Android kernel build system
         run: |
+          set -eux
+          rm -rf "$RUNNER_TEMP/kernel-build"
           git clone --depth=1 \
-            https://android.googlesource.com/kernel/build build
+            https://android.googlesource.com/kernel/build \
+            "$RUNNER_TEMP/kernel-build"
+          test -x "$RUNNER_TEMP/kernel-build/build.sh"
+          echo "KERNEL_BUILD_DIR=$RUNNER_TEMP/kernel-build" >> "$GITHUB_ENV"
 
       - name: Check Redmi K60 / Droidspaces configuration
         run: |
@@ -56,9 +61,11 @@ jobs:
           LLVM_IAS: "1"
           ARCH: arm64
           SKIP_MRPROPER: "0"
+          KERNEL_BUILD_DIR: ${{ runner.temp }}/kernel-build
         run: |
           set -eux
-          ./build/build.sh -j"$(nproc)" V=1
+          test -x "$KERNEL_BUILD_DIR/build.sh"
+          "$KERNEL_BUILD_DIR/build.sh" -j"$(nproc)" V=1
 
       - name: Verify kernel image
         run: |
@@ -118,8 +125,6 @@ jobs:
 
           . tools/ak3-core.sh;
 
-          # GKI Redmi K60: preserve the existing boot ramdisk and metadata,
-          # replace only the kernel, then write it back to the active boot slot.
           dump_boot;
           write_boot;
           EOF
