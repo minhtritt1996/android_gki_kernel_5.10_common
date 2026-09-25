@@ -39,7 +39,7 @@ jobs:
           git clone --depth=1 \
             https://android.googlesource.com/kernel/build \
             "$RUNNER_TEMP/kernel-build"
-          test -x "$RUNNER_TEMP/kernel-build/build.sh"
+          test -f "$RUNNER_TEMP/kernel-build/build.sh"
           echo "KERNEL_BUILD_DIR=$RUNNER_TEMP/kernel-build" >> "$GITHUB_ENV"
 
       - name: Check Redmi K60 / Droidspaces configuration
@@ -64,8 +64,8 @@ jobs:
           KERNEL_BUILD_DIR: ${{ runner.temp }}/kernel-build
         run: |
           set -eux
-          test -x "$KERNEL_BUILD_DIR/build.sh"
-          "$KERNEL_BUILD_DIR/build.sh" -j"$(nproc)" V=1
+          test -f "$KERNEL_BUILD_DIR/build.sh"
+          bash "$KERNEL_BUILD_DIR/build.sh" -j"$(nproc)" V=1
 
       - name: Verify kernel image
         run: |
