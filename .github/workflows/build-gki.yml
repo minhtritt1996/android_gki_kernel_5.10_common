@@ -1,0 +1,67 @@
+name: Android GKI 5.10
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android12-5.10-2026-04_r1
+  pull_request:
+    branches:
+      - android12-5.10-2026-04_r1
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout kernel
+        uses: actions/checkout@v4
+        with:
+          ref: android12-5.10-2026-04_r1
+          fetch-depth: 1
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             bc             bison             build-essential             ccache             cpio             flex             git             libelf-dev             libssl-dev             lld             llvm             clang             pahole             python3             rsync             unzip             zip
+
+      - name: Fetch Android kernel build tools
+        run: |
+          git clone --depth=1 --branch android12-5.10             https://android.googlesource.com/kernel/build build
+
+      - name: Check Droidspaces Kconfig
+        run: |
+          set -eux
+          grep -E '^CONFIG_(SYSVIPC|POSIX_MQUEUE|IPC_NS|PID_NS|USER_NS|NAMESPACES|UTS_NS|CGROUP_DEVICE|DEVTMPFS|OVERLAY_FS|NET_NS|VETH|BRIDGE|SECCOMP|NETFILTER_XT_SET|NETFILTER_XT_TARGET_REJECT|NETFILTER_XT_TARGET_LOG|NETFILTER_XT_MATCH_ADDRTYPE|NETFILTER_XT_MATCH_RECENT|IP_SET|IP_SET_HASH_IP|IP_SET_HASH_NET|TMPFS_POSIX_ACL|TMPFS_XATTR)='             arch/arm64/configs/gki_defconfig || true
+
+      - name: Build GKI
+        env:
+          BUILD_CONFIG: build.config.gki
+          OUT_DIR: ${{ github.workspace }}/out
+          DIST_DIR: ${{ github.workspace }}/dist
+          HERMETIC_TOOLCHAIN: "0"
+          LLVM: "1"
+          ARCH: arm64
+          SKIP_MRPROPER: "0"
+        run: |
+          ./build/build.sh -j"$(nproc)" V=1
+
+      - name: Verify GKI artifacts
+        run: |
+          set -eux
+          test -d dist
+          find dist -maxdepth 2 -type f -printf '%p\n' | sort
+          test -f dist/Image.lz4 || test -f dist/Image
+
+      - name: Upload GKI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-gki-5.10-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            dist/**
+            out/**/.config
