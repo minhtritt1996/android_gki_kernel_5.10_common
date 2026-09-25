@@ -1,4 +1,4 @@
-name: Android GKI 5.10
+name: Redmi K60 (mondrian) - GKI 5.10 + AnyKernel3
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Checkout kernel
@@ -27,16 +27,24 @@ jobs:
       - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y             bc             bison             build-essential             ccache             cpio             flex             git             libelf-dev             libssl-dev             lld             llvm             clang             pahole             python3             rsync             unzip             zip
+          sudo apt-get install -y \
+            bc bison build-essential ccache cpio flex git \
+            libelf-dev libssl-dev lld llvm clang pahole \
+            python3 rsync unzip zip zstd
 
-      - name: Fetch Android kernel build tools
+      - name: Fetch Android kernel build system
         run: |
-          git clone --depth=1 --branch android12-5.10             https://android.googlesource.com/kernel/build build
+          git clone --depth=1 --branch android12-5.10 \
+            https://android.googlesource.com/kernel/build build
 
-      - name: Check Droidspaces Kconfig
+      - name: Check Redmi K60 / Droidspaces configuration
         run: |
           set -eux
-          grep -E '^CONFIG_(SYSVIPC|POSIX_MQUEUE|IPC_NS|PID_NS|USER_NS|NAMESPACES|UTS_NS|CGROUP_DEVICE|DEVTMPFS|OVERLAY_FS|NET_NS|VETH|BRIDGE|SECCOMP|NETFILTER_XT_SET|NETFILTER_XT_TARGET_REJECT|NETFILTER_XT_TARGET_LOG|NETFILTER_XT_MATCH_ADDRTYPE|NETFILTER_XT_MATCH_RECENT|IP_SET|IP_SET_HASH_IP|IP_SET_HASH_NET|TMPFS_POSIX_ACL|TMPFS_XATTR)='             arch/arm64/configs/gki_defconfig || true
+          echo "=== Device ==="
+          echo "Redmi K60 / mondrian"
+          echo "=== Droidspaces / namespace / container config ==="
+          grep -E '^CONFIG_(SYSVIPC|POSIX_MQUEUE|IPC_NS|PID_NS|USER_NS|NAMESPACES|UTS_NS|CGROUP_DEVICE|DEVTMPFS|OVERLAY_FS|NET_NS|VETH|BRIDGE|SECCOMP|NETFILTER_XT_SET|NETFILTER_XT_TARGET_REJECT|NETFILTER_XT_TARGET_LOG|NETFILTER_XT_MATCH_ADDRTYPE|NETFILTER_XT_MATCH_RECENT|IP_SET|IP_SET_HASH_IP|IP_SET_HASH_NET|TMPFS_POSIX_ACL|TMPFS_XATTR)=' \
+            arch/arm64/configs/gki_defconfig || true
 
       - name: Build GKI
         env:
@@ -45,23 +53,110 @@ jobs:
           DIST_DIR: ${{ github.workspace }}/dist
           HERMETIC_TOOLCHAIN: "0"
           LLVM: "1"
+          LLVM_IAS: "1"
           ARCH: arm64
           SKIP_MRPROPER: "0"
         run: |
+          set -eux
           ./build/build.sh -j"$(nproc)" V=1
 
-      - name: Verify GKI artifacts
+      - name: Verify kernel image
         run: |
           set -eux
           test -d dist
           find dist -maxdepth 2 -type f -printf '%p\n' | sort
-          test -f dist/Image.lz4 || test -f dist/Image
+          if [ -f dist/Image ]; then
+            cp dist/Image Image
+          elif [ -f dist/Image.lz4 ]; then
+            cp dist/Image.lz4 Image.lz4
+            echo "Image.lz4 found; AK3 will receive the compressed kernel."
+          else
+            echo "ERROR: no Image/Image.lz4 in dist"
+            exit 1
+          fi
+          file Image* || true
 
-      - name: Upload GKI artifacts
+      - name: Prepare AnyKernel3 for Redmi K60
+        run: |
+          set -eux
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git anykernel
+
+          rm -rf anykernel/.git
+          rm -f anykernel/README.md anykernel/.gitignore
+          rm -f anykernel/kernel Image.lz4
+          cp Image anykernel/Image 2>/dev/null || cp Image.lz4 anykernel/Image.lz4
+
+          cat > anykernel/anykernel.sh <<'EOF'
+          ### AnyKernel3 - Redmi K60 (mondrian)
+          ## GKI 5.10 kernel built by GitHub Actions
+
+          properties() { '
+          kernel.string=Redmi K60 mondrian - Android GKI 5.10
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=1
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=mondrian
+          device.name2=
+          device.name3=
+          device.name4=
+          supported.versions=
+          supported.patchlevels=
+          supported.vendorpatchlevels=
+          '; }
+
+          boot_attributes() {
+            set_perm_recursive 0 0 755 644 $RAMDISK/*;
+            set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
+          }
+
+          BLOCK=/dev/block/bootdevice/by-name/boot;
+          IS_SLOT_DEVICE=1;
+          RAMDISK_COMPRESSION=auto;
+          PATCH_VBMETA_FLAG=auto;
+
+          . tools/ak3-core.sh;
+
+          # GKI Redmi K60: preserve the existing boot ramdisk and metadata,
+          # replace only the kernel, then write it back to the active boot slot.
+          dump_boot;
+          write_boot;
+          EOF
+
+          cat > anykernel/README-mondrian.txt <<'EOF'
+          Redmi K60 (mondrian) - Android GKI 5.10
+          =========================================
+          This AnyKernel3 package replaces the kernel in the active boot slot.
+          It does not replace vendor_boot, dtbo, vendor_dlkm or other partitions.
+
+          Requirements:
+          - Redmi K60 (mondrian)
+          - Unlocked bootloader
+          - Compatible Android 12/13/14/15/16 GKI-based ROM
+          - Existing boot image must be readable by AnyKernel3/magiskboot
+
+          If the device fails to boot, restore the original boot image before
+          troubleshooting. Keep a backup of boot/vendor_boot/dtbo.
+          EOF
+
+          chmod +x anykernel/anykernel.sh
+          (cd anykernel && zip -r9 ../AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip . -x .git/\* README.md '*placeholder*')
+
+      - name: Generate checksums and inspect package
+        run: |
+          set -eux
+          sha256sum AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip > AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip.sha256
+          unzip -l AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip
+          cat AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip.sha256
+
+      - name: Upload GKI + AnyKernel3 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-gki-5.10-${{ github.sha }}
+          name: Redmi-K60-mondrian-GKI-5.10-${{ github.sha }}
           if-no-files-found: error
           path: |
             dist/**
             out/**/.config
+            AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip
+            AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip.sha256
