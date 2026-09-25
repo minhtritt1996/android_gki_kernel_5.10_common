@@ -21,7 +21,6 @@ jobs:
       - name: Checkout kernel
         uses: actions/checkout@v5
         with:
-          ref: android12-5.10-2026-04_r1
           fetch-depth: 1
 
       - name: Install host dependencies
