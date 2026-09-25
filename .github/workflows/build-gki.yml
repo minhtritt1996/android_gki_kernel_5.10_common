@@ -51,6 +51,11 @@ jobs:
         run: |
           set -eux
           make O="$OUT_DIR" ARCH="$ARCH" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" gki_defconfig
+          # Ubuntu's LLVM packages do not include the optional Polly pass used
+          # by this downstream configuration.  Leaving it enabled makes clang
+          # reject the -polly* -mllvm flags before compilation starts.
+          scripts/config --file "$OUT_DIR/.config" --disable LLVM_POLLY
+          make O="$OUT_DIR" ARCH="$ARCH" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" olddefconfig
           make O="$OUT_DIR" ARCH="$ARCH" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" -j"$(nproc)" Image
           mkdir -p "$DIST_DIR"
           cp "$OUT_DIR/arch/arm64/boot/Image" "$DIST_DIR/Image"
