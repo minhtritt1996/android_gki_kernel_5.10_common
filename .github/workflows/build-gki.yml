@@ -23,14 +23,6 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
           df -h
 
-      - name: Add swap space
-        run: |
-          sudo fallocate -l 8G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=8192
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          free -h
-
       - name: Checkout kernel
         uses: actions/checkout@v4
         with:
@@ -84,31 +76,32 @@ jobs:
           clang --version | head -n 2
 
           make O="$OUT_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" gki_defconfig
-          make O="$OUT_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" -j"$(nproc)" Image Image.lz4 || \
-          make O="$OUT_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" -j"$(nproc)" Image
+          
+          set +e
+          make O="$OUT_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" LLVM="$LLVM" LLVM_IAS="$LLVM_IAS" -j"$(nproc)" Image 2>&1 | tee "$OUT_DIR/build.log"
+          BUILD_STATUS="${PIPESTATUS[0]}"
+          set -e
+
+          if [ "$BUILD_STATUS" -ne 0 ]; then
+            echo "::error::Kernel build failed with status $BUILD_STATUS"
+            echo "=== Last 200 log lines ==="
+            tail -n 200 "$OUT_DIR/build.log"
+            exit "$BUILD_STATUS"
+          fi
 
           if [ -f "$OUT_DIR/arch/arm64/boot/Image" ]; then
             cp "$OUT_DIR/arch/arm64/boot/Image" "$DIST_DIR/Image"
-          fi
-          if [ -f "$OUT_DIR/arch/arm64/boot/Image.lz4" ]; then
-            cp "$OUT_DIR/arch/arm64/boot/Image.lz4" "$DIST_DIR/Image.lz4"
+          else
+            echo "::error::Image not found in $OUT_DIR/arch/arm64/boot/"
+            exit 1
           fi
 
       - name: Verify kernel image
         run: |
           set -eux
-          test -d dist
-          find dist -maxdepth 2 -type f -printf '%p\n' | sort
-          if [ -f dist/Image ]; then
-            cp dist/Image Image
-          elif [ -f dist/Image.lz4 ]; then
-            cp dist/Image.lz4 Image.lz4
-            echo "Image.lz4 found; AK3 will receive the compressed kernel."
-          else
-            echo "ERROR: no Image/Image.lz4 in dist"
-            exit 1
-          fi
-          file Image* || true
+          test -f dist/Image
+          file dist/Image
+          ls -lh dist/Image
 
       - name: Prepare AnyKernel3 for Redmi K60
         run: |
@@ -117,8 +110,8 @@ jobs:
 
           rm -rf anykernel/.git
           rm -f anykernel/README.md anykernel/.gitignore
-          rm -f anykernel/kernel Image.lz4
-          cp Image anykernel/Image 2>/dev/null || cp Image.lz4 anykernel/Image.lz4
+          rm -f anykernel/kernel anykernel/Image.lz4
+          cp dist/Image anykernel/Image
 
           cat > anykernel/anykernel.sh <<'EOF'
           ### AnyKernel3 Ramdisk Mod Script
@@ -187,7 +180,7 @@ jobs:
       - name: Upload GKI + AnyKernel3 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Redmi-K60-mondrian-GKI-5.10-${{ github.sha }}
+          name: AnyKernel3-RedmiK60-mondrian-GKI-5.10-${{ github.sha }}
           if-no-files-found: error
           path: |
             dist/**
