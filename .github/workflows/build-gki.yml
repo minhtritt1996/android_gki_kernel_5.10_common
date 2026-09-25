@@ -34,13 +34,40 @@ jobs:
 
       - name: Fetch Android kernel build system
         run: |
-          set -eux
+          set -euxo pipefail
+          KERNEL_BUILD_REMOTE="https://android.googlesource.com/kernel/build"
+          LEGACY_KERNEL_BUILD_BRANCH="android12-5.10"
+          LEGACY_KERNEL_BUILD_COMMIT="ec7e1bc932f45518c6368bf0275b99639b904001"
+
           rm -rf "$RUNNER_TEMP/kernel-build"
-          git clone --depth=1 \
-            https://android.googlesource.com/kernel/build \
-            "$RUNNER_TEMP/kernel-build"
-          KERNEL_BUILD_SH="$(find "$RUNNER_TEMP/kernel-build" -maxdepth 4 -type f -name build.sh | head -n1)"
-          test -n "$KERNEL_BUILD_SH"
+
+          if git ls-remote --exit-code --heads "$KERNEL_BUILD_REMOTE" "$LEGACY_KERNEL_BUILD_BRANCH" >/dev/null 2>&1; then
+            git clone --depth=1 \
+              --branch "$LEGACY_KERNEL_BUILD_BRANCH" \
+              "$KERNEL_BUILD_REMOTE" \
+              "$RUNNER_TEMP/kernel-build"
+            KERNEL_BUILD_REF="$LEGACY_KERNEL_BUILD_BRANCH"
+          else
+            echo "Branch '$LEGACY_KERNEL_BUILD_BRANCH' not found; falling back to pinned legacy commit '$LEGACY_KERNEL_BUILD_COMMIT'."
+            git init "$RUNNER_TEMP/kernel-build"
+            git -C "$RUNNER_TEMP/kernel-build" remote add origin "$KERNEL_BUILD_REMOTE"
+            git -C "$RUNNER_TEMP/kernel-build" fetch --depth=1 origin "$LEGACY_KERNEL_BUILD_COMMIT"
+            git -C "$RUNNER_TEMP/kernel-build" checkout --detach FETCH_HEAD
+            KERNEL_BUILD_REF="$LEGACY_KERNEL_BUILD_COMMIT"
+          fi
+
+          KERNEL_BUILD_SH="$(find "$RUNNER_TEMP/kernel-build" -maxdepth 8 \( -type f -o -type l \) -name build.sh | sort | head -n1)"
+          if [ -z "$KERNEL_BUILD_SH" ]; then
+            echo "ERROR: build.sh not found in $RUNNER_TEMP/kernel-build at ref '$KERNEL_BUILD_REF'"
+            echo "Directory snapshot (maxdepth 4):"
+            find "$RUNNER_TEMP/kernel-build" -maxdepth 4 -mindepth 1 -print | sort
+            echo "build*.sh candidates (maxdepth 8):"
+            find "$RUNNER_TEMP/kernel-build" -maxdepth 8 \( -type f -o -type l \) -name '*build*.sh' -print | sort || true
+            exit 1
+          fi
+
+          echo "Using kernel/build ref: $KERNEL_BUILD_REF"
+          echo "Using kernel/build script: $KERNEL_BUILD_SH"
           echo "KERNEL_BUILD_DIR=$RUNNER_TEMP/kernel-build" >> "$GITHUB_ENV"
           echo "KERNEL_BUILD_SH=$KERNEL_BUILD_SH" >> "$GITHUB_ENV"
 
