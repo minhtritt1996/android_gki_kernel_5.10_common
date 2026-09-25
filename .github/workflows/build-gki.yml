@@ -108,63 +108,63 @@ jobs:
           cp Image anykernel/Image 2>/dev/null || cp Image.lz4 anykernel/Image.lz4
 
           cat > anykernel/anykernel.sh <<'EOF'
-### AnyKernel3 - Redmi K60 (mondrian)
-## GKI 5.10 kernel built by GitHub Actions
+          ### AnyKernel3 - Redmi K60 (mondrian)
+          ## GKI 5.10 kernel built by GitHub Actions
 
-properties() { '
-kernel.string=Redmi K60 (mondrian) - Droidspaces GKI 5.10
-do.devicecheck=1
-do.modules=0
-do.systemless=1
-do.cleanup=1
-do.cleanuponabort=0
-device.name1=mondrian
-device.name2=
-device.name3=
-device.name4=
-device.name5=
-supported.versions=
-supported.patchlevels=
-supported.vendorpatchlevels=
-'; }
+          properties() { '
+          kernel.string=Redmi K60 (mondrian) - Droidspaces GKI 5.10
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=1
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=mondrian
+          device.name2=
+          device.name3=
+          device.name4=
+          device.name5=
+          supported.versions=
+          supported.patchlevels=
+          supported.vendorpatchlevels=
+          '; }
 
-boot_attributes() {
-  set_perm_recursive 0 0 755 644 $RAMDISK/*;
-  set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
-}
+          boot_attributes() {
+            set_perm_recursive 0 0 755 644 $RAMDISK/*;
+            set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
+          }
 
-BLOCK=auto;
-IS_SLOT_DEVICE=auto;
-RAMDISK_COMPRESSION=auto;
-PATCH_VBMETA_FLAG=auto;
+          BLOCK=auto;
+          IS_SLOT_DEVICE=auto;
+          RAMDISK_COMPRESSION=auto;
+          PATCH_VBMETA_FLAG=auto;
 
-. tools/ak3-core.sh;
+          . tools/ak3-core.sh;
 
-dump_boot;
-write_boot;
-EOF
+          dump_boot;
+          write_boot;
+          EOF
 
           cat > anykernel/README-mondrian.txt <<'EOF'
-Redmi K60 (mondrian) - Android GKI 5.10 with Droidspaces Support
-================================================================
-This AnyKernel3 package replaces the kernel in the active boot slot.
-It does not replace vendor_boot, dtbo, vendor_dlkm or other partitions.
+          Redmi K60 (mondrian) - Android GKI 5.10 with Droidspaces Support
+          ================================================================
+          This AnyKernel3 package replaces the kernel in the active boot slot.
+          It does not replace vendor_boot, dtbo, vendor_dlkm or other partitions.
 
-Includes Droidspaces support:
-- kABI-safe SYSVIPC & POSIX_MQUEUE
-- Namespaces (IPC, PID, USER, NET, UTS)
-- Networking (XT_SET, IP_SET, REJECT, LOG, MATCH_ADDRTYPE)
-- devtmpfs & tmpfs ACL/xattr
+          Includes Droidspaces support:
+          - kABI-safe SYSVIPC & POSIX_MQUEUE
+          - Namespaces (IPC, PID, USER, NET, UTS)
+          - Networking (XT_SET, IP_SET, REJECT, LOG, MATCH_ADDRTYPE)
+          - devtmpfs & tmpfs ACL/xattr
 
-Requirements:
-- Redmi K60 (mondrian)
-- Unlocked bootloader
-- Compatible Android 12/13/14/15/16 GKI-based ROM
-- Existing boot image must be readable by AnyKernel3/magiskboot
+          Requirements:
+          - Redmi K60 (mondrian)
+          - Unlocked bootloader
+          - Compatible Android 12/13/14/15/16 GKI-based ROM
+          - Existing boot image must be readable by AnyKernel3/magiskboot
 
-If the device fails to boot, restore the original boot image before
-troubleshooting. Keep a backup of boot/vendor_boot/dtbo.
-EOF
+          If the device fails to boot, restore the original boot image before
+          troubleshooting. Keep a backup of boot/vendor_boot/dtbo.
+          EOF
 
           chmod +x anykernel/anykernel.sh
           (cd anykernel && zip -r9 ../AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip . -x .git/\* README.md '*placeholder*')
