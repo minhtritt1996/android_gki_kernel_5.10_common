@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 180
 
     steps:
@@ -35,19 +35,16 @@ jobs:
             bc bison build-essential ccache cpio curl flex git \
             libelf-dev libssl-dev libncurses-dev pahole \
             python3 rsync unzip zip zstd \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            libncurses5 libtinfo5 || true
 
       - name: Set up AOSP Clang toolchain
         run: |
           set -eux
           CLANG_DIR="${RUNNER_TEMP}/clang"
-          mkdir -p "$CLANG_DIR"
-          echo "Downloading Google AOSP Clang r416183b..."
-          curl -fsSL --connect-timeout 30 --retry 3 \
-            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master-kernel-build-2021/clang-r416183b.tar.gz" \
-            -o "${RUNNER_TEMP}/clang.tar.gz"
-          tar -xzf "${RUNNER_TEMP}/clang.tar.gz" -C "$CLANG_DIR"
-          rm -f "${RUNNER_TEMP}/clang.tar.gz"
+          echo "Cloning AOSP Clang r416183b (build 7284624)..."
+          git clone --depth=1 -b lineage-20.0 https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b.git "$CLANG_DIR"
+          chmod +x "$CLANG_DIR/bin"/* || true
           echo "$CLANG_DIR/bin" >> "$GITHUB_PATH"
 
       - name: Check Redmi K60 / Droidspaces configuration
