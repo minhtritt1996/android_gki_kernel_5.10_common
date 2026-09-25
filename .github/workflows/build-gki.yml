@@ -10,7 +10,7 @@ on:
       - android12-5.10-2026-04_r1
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -200,3 +200,24 @@ jobs:
             out/**/.config
             AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip
             AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push' && github.ref == 'refs/heads/android12-5.10-2026-04_r1'
+        with:
+          tag_name: v5.10-droidspaces-build-${{ github.run_number }}
+          name: Redmi K60 (mondrian) GKI 5.10 - Build #${{ github.run_number }}
+          make_latest: true
+          body: |
+            ### Redmi K60 (mondrian) Droidspaces GKI 5.10
+            - Commit: `${{ github.sha }}`
+            - Kernel: `5.10.252-ztc1997-star0-dsfork`
+            - Clang: `12.0.5 r416183b` + ThinLTO
+            - Full Droidspaces & HyperOS (Android 15) support.
+
+            **Flash trực tiếp file sau trong TWRP / OrangeFox:**
+            - `AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip`
+          files: |
+            AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip
+            AnyKernel3-RedmiK60-mondrian-GKI-5.10.zip.sha256
+            dist/Image
